@@ -1,8 +1,6 @@
 apply plugin: 'com.android.application'
 
 android {
-    ndkVersion "27.0.12077973"
-
     namespace "org.cgutman.usbipserverforandroid"
     compileSdk 34
 
@@ -16,12 +14,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
-        }
-    }
-
-    externalNativeBuild {
-        ndkBuild {
-            path "src/main/jni/Android.mk"
+            signingConfig signingConfigs.debug
         }
     }
 }

@@ -4,17 +4,12 @@ import org.cgutman.usbip.service.UsbIpService;
 import org.cgutman.usbipserverforandroid.R;
 
 import android.Manifest;
-import android.app.ActivityManager;
-import android.app.ActivityManager.RunningServiceInfo;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.Build;
+import android.graphics.Point;
 import android.os.Bundle;
-import android.view.View;
-import android.view.View.OnClickListener;
-import android.widget.Button;
-import android.widget.TextView;
+import android.util.DisplayMetrics;
+import android.view.MotionEvent;
 
 import androidx.activity.ComponentActivity;
 import androidx.activity.result.ActivityResultLauncher;
@@ -22,72 +17,90 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
 
 public class UsbIpConfig extends ComponentActivity {
-	private Button serviceButton;
-	private TextView serviceStatus;
-	private TextView serviceReadyText;
-	
-	private boolean running;
+    private final Point screenSize = new Point();
+    private boolean screenSizeSet = false;
 
-	private ActivityResultLauncher<String> requestPermissionLauncher =
-			registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
-				// We don't actually care if the permission is granted or not. We will launch the service anyway.
-				startService(new Intent(UsbIpConfig.this, UsbIpService.class));
-			});
-	
-	private void updateStatus() {
-		if (running) {
-			serviceButton.setText("Stop Service");
-			serviceStatus.setText("USB/IP Service Running");
-			serviceReadyText.setText(R.string.ready_text);
-		}
-		else {
-			serviceButton.setText("Start Service");
-			serviceStatus.setText("USB/IP Service Stopped");
-			serviceReadyText.setText("");
-		}
-	}
-	
-	// Elegant Stack Overflow solution to querying running services
-	private boolean isMyServiceRunning(Class<?> serviceClass) {
-	    ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-	    for (RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
-	        if (serviceClass.getName().equals(service.service.getClassName())) {
-	            return true;
-	        }
-	    }
-	    return false;
-	}
-	
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_usbip_config);
+    private ActivityResultLauncher<String> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                // We don't actually care if the permission is granted or not. We will launch the service anyway.
+                startService(new Intent(UsbIpConfig.this, UsbIpService.class));
+            });
 
-		serviceButton = findViewById(R.id.serviceButton);
-		serviceStatus = findViewById(R.id.serviceStatus);
-		serviceReadyText = findViewById(R.id.serviceReadyText);
-		
-		running = isMyServiceRunning(UsbIpService.class);
-		
-		updateStatus();
-		
-		serviceButton.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				if (running) {
-					stopService(new Intent(UsbIpConfig.this, UsbIpService.class));
-				}
-				else {
-					if (ContextCompat.checkSelfPermission(UsbIpConfig.this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-						startService(new Intent(UsbIpConfig.this, UsbIpService.class));
-					} else {
-						requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
-					}
-				}
-				
-				running = !running;
-				updateStatus();
-			}
-		});
-	}
+    private void handlePenTouchOrHover(MotionEvent event) {
+        int x = Math.round(event.getRawX() * event.getXPrecision());
+        int y = Math.round(event.getRawY() * event.getYPrecision());
+        int pressure = Math.round(event.getPressure() * 4095);
+        // TODO
+//        float orientation = event.getOrientation();
+//        float tilt = event.getAxisValue(MotionEvent.AXIS_TILT);
+        boolean buttonPrimary = event.isButtonPressed(MotionEvent.BUTTON_STYLUS_PRIMARY);
+        boolean buttonSecondary = event.isButtonPressed(MotionEvent.BUTTON_STYLUS_SECONDARY);
+//        System.out.println(String.format("Orientation: %f", orientation));
+//        System.out.println(String.format("Tilt: %f", tilt));
+
+        Intent broadcast = new Intent("position");
+        broadcast.putExtra("x", x);
+        broadcast.putExtra("y", y);
+        broadcast.putExtra("pressure", pressure);
+        broadcast.putExtra("buttonPrimary", buttonPrimary);
+        broadcast.putExtra("buttonSecondary", buttonSecondary);
+
+        sendBroadcast(broadcast);
+
+        if (!screenSizeSet) {
+            Intent broadcastSize = new Intent("maxSize");
+            broadcastSize.putExtra("maxX", (int)Math.ceil(screenSize.x * event.getXPrecision()));
+            broadcastSize.putExtra("maxY", (int)Math.ceil(screenSize.y * event.getYPrecision()));
+            sendBroadcast(broadcastSize);
+            screenSizeSet = true;
+        }
+    }
+
+    private void handlePenWentOutOfRange() {
+        Intent broadcast = new Intent("penOutOfRange");
+        sendBroadcast(broadcast);
+    }
+
+    @Override
+    public boolean onGenericMotionEvent(MotionEvent event) {
+        if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
+            if (event.getAction() == MotionEvent.ACTION_HOVER_MOVE)
+                handlePenTouchOrHover(event);
+            if (event.getAction() == MotionEvent.ACTION_HOVER_EXIT)
+                handlePenWentOutOfRange();
+            return true;
+        } else {
+            return super.onGenericMotionEvent(event);
+        }
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_MOVE && event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
+            handlePenTouchOrHover(event);
+            return true;
+        } else {
+            return super.onGenericMotionEvent(event);
+        }
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_usbip_config);
+
+        if (ContextCompat.checkSelfPermission(UsbIpConfig.this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            startService(new Intent(UsbIpConfig.this, UsbIpService.class));
+        } else {
+            requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
+
+        this.getWindowManager().getDefaultDisplay().getRealSize(screenSize);
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopService(new Intent(UsbIpConfig.this, UsbIpService.class));
+        super.onDestroy();
+    }
 }

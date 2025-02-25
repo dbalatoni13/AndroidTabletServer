@@ -1,15 +1,12 @@
 package org.cgutman.usbip.usb;
 
-import org.cgutman.usbip.jni.UsbLib;
-
-import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbEndpoint;
 
 public class XferUtils {
 
-	public static int doInterruptTransfer(UsbDeviceConnection devConn, UsbEndpoint endpoint, byte[] buff, int timeout) {
+	public static int doInterruptTransfer(MockDeviceConnection devConn, UsbEndpoint endpoint, byte[] buff, int timeout) {
 		// Interrupt transfers are implemented as one-shot bulk transfers
-		int res = UsbLib.doBulkTransfer(devConn.getFileDescriptor(), endpoint.getAddress(), buff, timeout);
+		int res = devConn.bulkTransfer(buff, buff.length, timeout);
 		if (res < 0 && res != -110) {
 			// Don't print for ETIMEDOUT
 			System.err.println("Interrupt Xfer failed: "+res);
@@ -18,8 +15,8 @@ public class XferUtils {
 		return res;
 	}
 	
-	public static int doBulkTransfer(UsbDeviceConnection devConn, UsbEndpoint endpoint, byte[] buff, int timeout) {
-		int res = UsbLib.doBulkTransfer(devConn.getFileDescriptor(), endpoint.getAddress(), buff, timeout);
+	public static int doBulkTransfer(MockDeviceConnection devConn, byte[] buff, int timeout) {
+		int res = devConn.bulkTransfer(buff, buff.length, timeout);
 		if (res < 0 && res != -110) {
 			// Don't print for ETIMEDOUT
 			System.err.println("Bulk Xfer failed: "+res);
@@ -28,7 +25,7 @@ public class XferUtils {
 		return res;
 	}
 
-	public static int doControlTransfer(UsbDeviceConnection devConn, int requestType,
+	public static int doControlTransfer(MockDeviceConnection devConn, int requestType,
 			int request, int value, int index, byte[] buff, int length, int interval) {
 		
 		// Mask out possible sign expansions
@@ -41,8 +38,8 @@ public class XferUtils {
 		System.out.printf("SETUP: %x %x %x %x %x\n",
 				requestType, request, value, index, length);
 		
-		int res = UsbLib.doControlTransfer(devConn.getFileDescriptor(), (byte)requestType, (byte)request,
-				(short)value, (short)index, buff, length, interval);
+		int res = devConn.controlTransfer(requestType, request,
+				value, index, buff, length, interval);
 		if (res < 0 && res != -110) {
 			// Don't print for ETIMEDOUT
 			System.err.println("Control Xfer failed: "+res);
