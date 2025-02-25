@@ -31,3 +31,6 @@ This works over the network, but using a wired connection gives much better resu
 Now you'll see a new USB device in the Device Manager. If there are issues with it, you might have to [install Zadig’s WinUSB onto it](https://opentabletdriver.net/Wiki/Install/Windows).
 
 The attach command has to be rerun everytime the app gets closed by you or by the OS for battery/RAM saving.
+
+# TODO
+Add installation instructions for linux, there's no BSOD problem there.
